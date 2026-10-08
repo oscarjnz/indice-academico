@@ -1,7 +1,7 @@
 // Interfaz: arma el DOM, conecta eventos y pinta los resultados de calc.js.
 // Todo texto del usuario entra por textContent o value, nunca por innerHTML.
-import { analizar, NOTAS } from './calc.js';
-import { cargar, guardar, borrar, estadoInicial, cuatrimestreNuevo, materiaVacia } from './estado.js';
+import { analizar, NOTAS } from './core/calc.js';
+import { cargar, guardar, borrar, estadoInicial, cuatrimestreNuevo, materiaVacia } from './core/estado.js';
 
 let storage = null;
 try {

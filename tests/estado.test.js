@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CLAVE, estadoInicial, cuatrimestreNuevo, validarEstado, cargar, guardar, borrar,
-} from '../estado.js';
+} from '../src/core/estado.js';
 
 const almacenFalso = (inicial = {}) => {
   const datos = { ...inicial };

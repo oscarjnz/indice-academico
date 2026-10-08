@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   PUNTOS, NOTAS, MINIMO, normalizarNombre, esComputable, redondearDecimas, indice, acumulado,
   honorPara, analizar,
-} from '../calc.js';
+} from '../src/core/calc.js';
 
 const mat = (nombre, creditos, nota) => ({ id: nombre, nombre, creditos, nota });
 
