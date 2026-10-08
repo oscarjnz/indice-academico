@@ -327,6 +327,37 @@ test('aviso de mínimo para graduarse según el acumulado', () => {
   assert.equal(analizar(est(cuat('c0', ...bloque('a', 'C')))).alertas.bajoMinimo, false);
 });
 
+const matP = (pensumId, nombre, creditos, nota) => ({ id: `${pensumId}-${nombre}`, pensumId, nombre, creditos, nota });
+
+test('repetida por pensumId aunque el nombre escrito difiera', () => {
+  const cs = [
+    cuat('c0', matP('calculo', 'Cálculo I', 4, 'F'), mat('x', 2, 'A')),
+    cuat('c1', matP('calculo', 'Calculo 1', 4, 'B')),
+  ];
+  const r = acumulado(cs);
+  assert.deepEqual(r.sustituidas, { '0:0': 1 });
+  assert.equal(r.puntos, 8 + 12);
+  assert.equal(r.creditos, 6);
+});
+
+test('una materia del pensum y una escrita a mano con el mismo nombre no se fusionan', () => {
+  const cs = [
+    cuat('c0', matP('espanol-i', 'Español I', 4, 'F')),
+    cuat('c1', mat('Español I', 4, 'B')),
+  ];
+  const r = acumulado(cs);
+  assert.deepEqual(r.sustituidas, {});
+  assert.equal(r.creditos, 8);
+  assert.equal(r.puntos, 12);
+});
+
+test('tres reprobaciones se cuentan por pensumId aunque el nombre cambie', () => {
+  const intento = (n, nota) => cuat(`c${n}`, matP('romano', `Derecho Romano ${n}`, 3, nota), mat(`x${n}`, 3, 'A'));
+  const r = analizar(est(intento(0, 'F'), intento(1, 'FN'), intento(2, 'F')));
+  assert.equal(r.alertas.reprobaciones.length, 1);
+  assert.equal(r.alertas.reprobaciones[0].veces, 3);
+});
+
 test('sustituidas del acumulado final se exponen en analizar', () => {
   const r = analizar(est(
     cuat('c0', mat('Física', 3, 'F'), mat('x', 3, 'A')),

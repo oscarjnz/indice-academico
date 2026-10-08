@@ -51,11 +51,13 @@ export function indice(materias) {
   return resumir(puntos, creditos);
 }
 
-// Clave para detectar una materia repetida: el nombre normalizado. Un nombre
-// vacío nunca coincide con otro, así que recibe una clave única por posición.
-export function claveMateria(nombre, ci = 0, mi = 0) {
-  const normal = normalizarNombre(nombre);
-  return normal === '' ? `\u0000#${ci}:${mi}` : normal;
+// Clave para detectar una materia repetida: el pensumId si la materia es del
+// pensum; si no, el nombre normalizado. Un nombre vacío nunca coincide con otro,
+// así que recibe una clave única por posición.
+export function claveMateria(materia, ci = 0, mi = 0) {
+  if (typeof materia.pensumId === 'string') return `p:${materia.pensumId}`;
+  const normal = normalizarNombre(materia.nombre);
+  return normal === '' ? `\u0000#${ci}:${mi}` : `n:${normal}`;
 }
 
 // Índice acumulado de los cuatrimestres 0..hasta (art. 26.3): una misma materia
@@ -67,7 +69,7 @@ export function acumulado(cuatrimestres, hasta = cuatrimestres.length - 1) {
   for (let ci = 0; ci <= hasta; ci++) {
     cuatrimestres[ci].materias.forEach((materia, mi) => {
       if (!esComputable(materia)) return;
-      const entrada = { ci, mi, clave: claveMateria(materia.nombre, ci, mi), materia };
+      const entrada = { ci, mi, clave: claveMateria(materia, ci, mi), materia };
       entradas.push(entrada);
       ultima.set(entrada.clave, entrada);
     });
@@ -100,8 +102,8 @@ function reprobaciones(cuatrimestres) {
   for (const cuatrimestre of cuatrimestres) {
     for (const materia of cuatrimestre.materias) {
       if (materia.nota !== 'F' && materia.nota !== 'FN') continue;
-      const clave = normalizarNombre(materia.nombre);
-      if (clave === '') continue;
+      if (typeof materia.pensumId !== 'string' && normalizarNombre(materia.nombre) === '') continue;
+      const clave = claveMateria(materia);
       const registro = cuenta.get(clave) ?? { nombre: String(materia.nombre).trim(), veces: 0 };
       registro.veces += 1;
       cuenta.set(clave, registro);
