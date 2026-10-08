@@ -1,0 +1,11 @@
+{
+  "name": "indice-academico",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Calculadora de índice cuatrimestral y acumulado según el reglamento académico de grado de la PUCMM",
+  "scripts": {
+    "test": "node --test",
+    "start": "python -m http.server 8080"
+  }
+}
