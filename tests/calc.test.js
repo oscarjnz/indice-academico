@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PUNTOS, NOTAS, MINIMO, normalizarNombre, esComputable, redondearDecimas, indice, acumulado,
+  honorPara, analizar,
 } from '../calc.js';
 
 const mat = (nombre, creditos, nota) => ({ id: nombre, nombre, creditos, nota });
@@ -170,4 +171,166 @@ test('acumulado sin cuatrimestres o sin datos', () => {
   assert.deepEqual(acumulado([]), vacio);
   assert.deepEqual(acumulado([cuat('c0')], 0), vacio);
   assert.deepEqual(acumulado(CLASE_ACUM, -1), vacio);
+});
+
+const est = (...cuatrimestres) => ({ version: 1, cuatrimestres });
+// n materias de 3 créditos con la misma nota; el prefijo evita repetidas accidentales
+const bloque = (prefijo, nota, n = 2) =>
+  Array.from({ length: n }, (_, i) => mat(`${prefijo}${i}`, 3, nota));
+
+test('analizar con los ejemplos de la clase', () => {
+  const r = analizar(est(...CLASE_ACUM));
+  assert.equal(r.cuatrimestres[0].indice.decimas, 18);
+  assert.equal(r.acumuladoFinal.decimas, 23);
+  assert.equal(r.honor, null);
+});
+
+test('analizar sin datos no produce NaN ni condiciones falsas', () => {
+  for (const e of [est(), est(cuat('c0')), est(cuat('c0', mat('a', 3, ''), mat('b', null, 'A')))]) {
+    const r = analizar(e);
+    assert.equal(r.acumuladoFinal.decimas, null);
+    assert.equal(r.condicionActual, 'normal');
+    assert.equal(r.honor, null);
+    assert.equal(r.rachaPrueba, 0);
+    assert.deepEqual(r.alertas, { pa3: false, reprobaciones: [], bajoMinimo: false });
+    assert.ok(!JSON.stringify(r).includes('NaN'));
+  }
+  assert.equal(analizar(est(cuat('c0'))).cuatrimestres[0].neutral, 'sin-datos');
+});
+
+test('el primer cuatrimestre con datos nunca afecta la condición aunque saque 0.0', () => {
+  const r = analizar(est(cuat('c0', ...bloque('a', 'F'))));
+  assert.equal(r.cuatrimestres[0].neutral, 'primero');
+  assert.equal(r.cuatrimestres[0].condicion, 'normal');
+  assert.equal(r.condicionActual, 'normal');
+  assert.equal(r.alertas.bajoMinimo, true);
+});
+
+test('un cuatrimestre vacío antes no le quita al primero con datos su carácter de primero', () => {
+  const r = analizar(est(cuat('vacio'), cuat('c1', ...bloque('a', 'F'))));
+  assert.equal(r.cuatrimestres[0].neutral, 'sin-datos');
+  assert.equal(r.cuatrimestres[1].neutral, 'primero');
+  assert.equal(r.condicionActual, 'normal');
+});
+
+test('dos cuatrimestres consecutivos bajo 2.0 ponen a prueba desde el tercero', () => {
+  const r = analizar(est(
+    cuat('c0', ...bloque('a', 'A')), // 4.0
+    cuat('c1', ...bloque('b', 'D')), // 1.0, acumulado 2.5
+    cuat('c2', ...bloque('c', 'D')), // 1.0, acumulado 2.0
+  ));
+  assert.equal(r.cuatrimestres[1].condicion, 'normal');
+  assert.equal(r.cuatrimestres[2].acumulado.decimas, 20);
+  assert.equal(r.cuatrimestres[2].condicion, 'prueba');
+  assert.equal(r.condicionActual, 'prueba');
+  assert.equal(r.rachaPrueba, 1);
+});
+
+test('acumulado bajo 2.0 pone a prueba desde el segundo cuatrimestre aunque el índice cuatrimestral sea 4.0', () => {
+  const r = analizar(est(
+    cuat('c0', ...bloque('a', 'F', 3)),
+    cuat('c1', ...bloque('b', 'A')),
+  ));
+  assert.equal(r.cuatrimestres[1].indice.decimas, 40);
+  assert.equal(r.cuatrimestres[1].acumulado.decimas, 16);
+  assert.equal(r.cuatrimestres[1].condicion, 'prueba');
+});
+
+test('un cuatrimestre con una sola materia es neutral y hereda la condición', () => {
+  const r = analizar(est(
+    cuat('c0', ...bloque('a', 'A')),
+    cuat('c1', mat('sola', 3, 'F')),
+    cuat('c2', ...bloque('c', 'D')),
+  ));
+  assert.equal(r.cuatrimestres[1].neutral, 'una-sola-materia');
+  assert.equal(r.cuatrimestres[1].condicion, 'normal');
+  // c2: el anterior es neutral, así que no hay "dos consecutivos"; acumulado 30/15 = 2.0
+  assert.equal(r.cuatrimestres[2].acumulado.decimas, 20);
+  assert.equal(r.cuatrimestres[2].condicion, 'normal');
+});
+
+test('un cuatrimestre con una sola materia no pasa a prueba aunque el acumulado sea menor que 2.0', () => {
+  const r = analizar(est(
+    cuat('c0', ...bloque('a', 'F')),
+    cuat('c1', mat('sola', 3, 'F')),
+  ));
+  assert.equal(r.cuatrimestres[1].condicion, 'normal');
+});
+
+test('recuperación: uno de los dos últimos con 2.0 o más y acumulado de 2.0 o más vuelve a normal', () => {
+  const r = analizar(est(
+    cuat('c0', ...bloque('a', 'A')),
+    cuat('c1', ...bloque('b', 'D')),
+    cuat('c2', ...bloque('c', 'D')), // prueba
+    cuat('c3', ...bloque('d', 'A')), // 4.0, acumulado 60/24 = 2.5
+  ));
+  assert.equal(r.cuatrimestres[2].condicion, 'prueba');
+  assert.equal(r.cuatrimestres[3].condicion, 'normal');
+  assert.equal(r.rachaPrueba, 0);
+});
+
+test('PA-3: tres cuatrimestres consecutivos a prueba disparan el aviso de separación', () => {
+  const dos = analizar(est(
+    cuat('c0', ...bloque('a', 'F')),
+    cuat('c1', ...bloque('b', 'F')),
+    cuat('c2', ...bloque('c', 'F')),
+  ));
+  assert.equal(dos.rachaPrueba, 2);
+  assert.equal(dos.alertas.pa3, false);
+  const tres = analizar(est(
+    cuat('c0', ...bloque('a', 'F')),
+    cuat('c1', ...bloque('b', 'F')),
+    cuat('c2', ...bloque('c', 'F')),
+    cuat('c3', ...bloque('d', 'F')),
+  ));
+  assert.equal(tres.rachaPrueba, 3);
+  assert.equal(tres.alertas.pa3, true);
+});
+
+test('PA-3: un cuatrimestre neutral en medio hereda la prueba y mantiene la cadena', () => {
+  const r = analizar(est(
+    cuat('c0', ...bloque('a', 'F')),
+    cuat('c1', ...bloque('b', 'F')), // prueba
+    cuat('c2', mat('sola', 3, 'F')), // neutral, hereda prueba
+    cuat('c3', ...bloque('d', 'F')), // prueba
+  ));
+  assert.equal(r.cuatrimestres[2].condicion, 'prueba');
+  assert.equal(r.rachaPrueba, 3);
+  assert.equal(r.alertas.pa3, true);
+});
+
+test('reprobar tres veces la misma materia (F o FN) dispara el aviso; dos no', () => {
+  const intento = (n, nota) =>
+    cuat(`c${n}`, mat(n === 1 ? ' CÁLCULO i' : 'Cálculo I', 4, nota), mat(`x${n}`, 3, 'A'));
+  const tres = analizar(est(intento(0, 'F'), intento(1, 'FN'), intento(2, 'F')));
+  assert.deepEqual(tres.alertas.reprobaciones, [{ nombre: 'Cálculo I', veces: 3 }]);
+  const dos = analizar(est(intento(0, 'F'), intento(1, 'FN')));
+  assert.deepEqual(dos.alertas.reprobaciones, []);
+  const sinNombre = analizar(est(cuat('c0', mat('', 3, 'F'), mat('', 3, 'F'), mat('', 3, 'F'))));
+  assert.deepEqual(sinNombre.alertas.reprobaciones, []);
+});
+
+test('honores en los límites', () => {
+  assert.equal(honorPara(40), 'Summa cum laude');
+  assert.equal(honorPara(38), 'Summa cum laude');
+  assert.equal(honorPara(37), 'Magna cum laude');
+  assert.equal(honorPara(35), 'Magna cum laude');
+  assert.equal(honorPara(34), 'Cum laude');
+  assert.equal(honorPara(32), 'Cum laude');
+  assert.equal(honorPara(31), null);
+  assert.equal(honorPara(0), null);
+  assert.equal(honorPara(null), null);
+});
+
+test('aviso de mínimo para graduarse según el acumulado', () => {
+  assert.equal(analizar(est(cuat('c0', ...bloque('a', 'D')))).alertas.bajoMinimo, true);
+  assert.equal(analizar(est(cuat('c0', ...bloque('a', 'C')))).alertas.bajoMinimo, false);
+});
+
+test('sustituidas del acumulado final se exponen en analizar', () => {
+  const r = analizar(est(
+    cuat('c0', mat('Física', 3, 'F'), mat('x', 3, 'A')),
+    cuat('c1', mat('física', 3, 'B'), mat('y', 3, 'A')),
+  ));
+  assert.deepEqual(r.sustituidas, { '0:0': 1 });
 });

@@ -81,3 +81,87 @@ export function acumulado(cuatrimestres, hasta = cuatrimestres.length - 1) {
   }
   return { ...indice(vigentes), sustituidas };
 }
+
+const HONORES = Object.freeze([
+  { nombre: 'Summa cum laude', desde: 38 },
+  { nombre: 'Magna cum laude', desde: 35 },
+  { nombre: 'Cum laude', desde: 32 },
+]);
+
+// Art. 37: honor según el índice acumulado redondeado (en décimas).
+export function honorPara(decimas) {
+  if (decimas == null) return null;
+  return HONORES.find((honor) => decimas >= honor.desde)?.nombre ?? null;
+}
+
+// Art. 33.1.b: tres reprobaciones (F o FN) de una misma asignatura.
+function reprobaciones(cuatrimestres) {
+  const cuenta = new Map();
+  for (const cuatrimestre of cuatrimestres) {
+    for (const materia of cuatrimestre.materias) {
+      if (materia.nota !== 'F' && materia.nota !== 'FN') continue;
+      const clave = normalizarNombre(materia.nombre);
+      if (clave === '') continue;
+      const registro = cuenta.get(clave) ?? { nombre: String(materia.nombre).trim(), veces: 0 };
+      registro.veces += 1;
+      cuenta.set(clave, registro);
+    }
+  }
+  return [...cuenta.values()].filter((registro) => registro.veces >= 3);
+}
+
+// Art. 31 y 32. Un cuatrimestre es neutral (no afecta la condición) si es el primero
+// con materias computables, si tiene una sola o si no tiene datos. Un neutral hereda
+// la condición del anterior. "Dos consecutivos" se toma como cuatrimestres adyacentes
+// y ninguno de los dos puede ser neutral.
+export function analizar(estado) {
+  const cuatrimestres = estado.cuatrimestres;
+  const filas = [];
+  let vistoPrimero = false;
+  let condicionPrevia = 'normal';
+
+  cuatrimestres.forEach((cuatrimestre, i) => {
+    const propio = indice(cuatrimestre.materias);
+    const { sustituidas: _omitida, ...acumuladoHasta } = acumulado(cuatrimestres, i);
+    const computables = cuatrimestre.materias.filter(esComputable).length;
+
+    let neutral = null;
+    if (computables === 0) neutral = 'sin-datos';
+    else if (!vistoPrimero) neutral = 'primero';
+    else if (computables === 1) neutral = 'una-sola-materia';
+    if (computables > 0) vistoPrimero = true;
+
+    let condicion = condicionPrevia;
+    if (neutral === null) {
+      // Con dos o más materias computables, ambos índices existen (no son null).
+      const anterior = filas[i - 1];
+      const regla1 =
+        anterior !== undefined &&
+        anterior.neutral === null &&
+        propio.decimas < MINIMO &&
+        anterior.indice.decimas < MINIMO;
+      const regla2 = acumuladoHasta.decimas < MINIMO;
+      condicion = regla1 || regla2 ? 'prueba' : 'normal';
+    }
+    condicionPrevia = condicion;
+    filas.push({ indice: propio, acumulado: acumuladoHasta, neutral, condicion });
+  });
+
+  let rachaPrueba = 0;
+  for (let i = filas.length - 1; i >= 0 && filas[i].condicion === 'prueba'; i--) rachaPrueba += 1;
+
+  const acumuladoFinal = acumulado(cuatrimestres);
+  return {
+    cuatrimestres: filas,
+    acumuladoFinal,
+    sustituidas: acumuladoFinal.sustituidas,
+    condicionActual: filas.length > 0 ? filas[filas.length - 1].condicion : 'normal',
+    rachaPrueba,
+    alertas: {
+      pa3: rachaPrueba >= 3,
+      reprobaciones: reprobaciones(cuatrimestres),
+      bajoMinimo: acumuladoFinal.decimas !== null && acumuladoFinal.decimas < MINIMO,
+    },
+    honor: honorPara(acumuladoFinal.decimas),
+  };
+}
