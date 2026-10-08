@@ -2,7 +2,7 @@
 
 Web de una sola página para calcular el **índice cuatrimestral** y el **índice acumulado** con la escala de letras A, B, C, D y F del Reglamento Académico de Grado de la PUCMM.
 
-**Pruébala:** https://oscarjnz.github.io/indice-academico/
+**Pruébala:** https://indice-academico.vercel.app (también en https://oscarjnz.github.io/indice-academico/)
 
 ## Cómo se usa
 
