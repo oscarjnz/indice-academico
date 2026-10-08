@@ -50,3 +50,34 @@ export function indice(materias) {
   }
   return resumir(puntos, creditos);
 }
+
+// Clave para detectar una materia repetida: el nombre normalizado. Un nombre
+// vacío nunca coincide con otro, así que recibe una clave única por posición.
+export function claveMateria(nombre, ci = 0, mi = 0) {
+  const normal = normalizarNombre(nombre);
+  return normal === '' ? `\u0000#${ci}:${mi}` : normal;
+}
+
+// Índice acumulado de los cuatrimestres 0..hasta (art. 26.3): una misma materia
+// no se computa dos veces, solo cuenta la última calificación computable, con los
+// créditos de ese momento. R no es computable, así que no sustituye a nadie.
+export function acumulado(cuatrimestres, hasta = cuatrimestres.length - 1) {
+  const entradas = [];
+  const ultima = new Map();
+  for (let ci = 0; ci <= hasta; ci++) {
+    cuatrimestres[ci].materias.forEach((materia, mi) => {
+      if (!esComputable(materia)) return;
+      const entrada = { ci, mi, clave: claveMateria(materia.nombre, ci, mi), materia };
+      entradas.push(entrada);
+      ultima.set(entrada.clave, entrada);
+    });
+  }
+  const vigentes = [];
+  const sustituidas = {};
+  for (const entrada of entradas) {
+    const final = ultima.get(entrada.clave);
+    if (final === entrada) vigentes.push(entrada.materia);
+    else sustituidas[`${entrada.ci}:${entrada.mi}`] = final.ci;
+  }
+  return { ...indice(vigentes), sustituidas };
+}

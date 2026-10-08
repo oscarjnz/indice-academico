@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  PUNTOS, NOTAS, MINIMO, normalizarNombre, esComputable, redondearDecimas, indice,
+  PUNTOS, NOTAS, MINIMO, normalizarNombre, esComputable, redondearDecimas, indice, acumulado,
 } from '../calc.js';
 
 const mat = (nombre, creditos, nota) => ({ id: nombre, nombre, creditos, nota });
@@ -83,4 +83,91 @@ test('normalizarNombre ignora acentos, mayúsculas y espacios', () => {
   assert.equal(normalizarNombre('Español'), 'espanol');
   assert.equal(normalizarNombre(null), '');
   assert.equal(normalizarNombre(undefined), '');
+});
+
+const cuat = (nombre, ...materias) => ({ id: nombre, nombre, materias });
+
+const CLASE_ACUM = [
+  cuat('p1', ...CLASE_1), // 19 créditos, 35 puntos
+  cuat('p2', mat('p2a', 10, 'B'), mat('p2b', 8, 'C'), mat('p2c', 3, 'F')), // 21, 46
+  cuat('p3', mat('p3a', 9, 'A'), mat('p3b', 3, 'B'), mat('p3c', 6, 'F')), // 18, 45
+  cuat('p4', mat('p4a', 8, 'A'), mat('p4b', 7, 'B'), mat('p4c', 5, 'F')), // 20, 53
+];
+
+test('ejemplo acumulado de la clase: 179 puntos / 78 créditos = 2.29, redondea a 2.3', () => {
+  const r = acumulado(CLASE_ACUM);
+  assert.equal(r.puntos, 179);
+  assert.equal(r.creditos, 78);
+  assert.equal(r.centesimas, 229);
+  assert.equal(r.decimas, 23);
+  assert.deepEqual(r.sustituidas, {});
+});
+
+test('acumulado hasta un cuatrimestre intermedio', () => {
+  const r = acumulado(CLASE_ACUM, 1);
+  assert.equal(r.puntos, 81);
+  assert.equal(r.creditos, 40);
+});
+
+test('materia repetida: en el acumulado solo cuenta la última, el cuatrimestre propio no cambia', () => {
+  const cs = [
+    cuat('c0', mat('Cálculo I', 4, 'F'), mat('x', 2, 'A')),
+    cuat('c1', mat('  calculo   i ', 4, 'B')),
+  ];
+  const r = acumulado(cs);
+  assert.equal(r.puntos, 8 + 12); // x (2 cr, A) + Cálculo I (4 cr, B)
+  assert.equal(r.creditos, 6);
+  assert.deepEqual(r.sustituidas, { '0:0': 1 });
+  // la F sigue contando en el índice de su propio cuatrimestre
+  assert.equal(indice(cs[0].materias).puntos, 8);
+  assert.equal(indice(cs[0].materias).creditos, 6);
+});
+
+test('materia repetida usa los créditos de la última vez', () => {
+  const cs = [cuat('c0', mat('Física', 3, 'F')), cuat('c1', mat('Física', 4, 'A'))];
+  const r = acumulado(cs);
+  assert.equal(r.creditos, 4);
+  assert.equal(r.puntos, 16);
+});
+
+test('tres intentos: solo cuenta el último y los dos anteriores quedan sustituidos por él', () => {
+  const cs = [
+    cuat('c0', mat('Química', 3, 'F')),
+    cuat('c1', mat('Química', 3, 'D')),
+    cuat('c2', mat('Química', 3, 'C')),
+  ];
+  const r = acumulado(cs);
+  assert.equal(r.creditos, 3);
+  assert.equal(r.puntos, 6);
+  assert.deepEqual(r.sustituidas, { '0:0': 2, '1:0': 2 });
+});
+
+test('repetida dentro del mismo cuatrimestre: gana la fila posterior', () => {
+  const r = acumulado([cuat('c0', mat('Arte', 2, 'F'), mat('arte', 2, 'A'))]);
+  assert.equal(r.puntos, 8);
+  assert.equal(r.creditos, 2);
+  assert.deepEqual(r.sustituidas, { '0:0': 0 });
+});
+
+test('R no sustituye una calificación anterior', () => {
+  const cs = [cuat('c0', mat('Mat', 3, 'C')), cuat('c1', mat('Mat', 3, 'R'))];
+  const r = acumulado(cs);
+  assert.equal(r.puntos, 6);
+  assert.equal(r.creditos, 3);
+  assert.deepEqual(r.sustituidas, {});
+});
+
+test('materias sin nombre nunca se fusionan entre sí', () => {
+  const cs = [cuat('c0', mat('', 3, 'A'), mat('  ', 3, 'B')), cuat('c1', mat('', 3, 'C'))];
+  const r = acumulado(cs);
+  assert.equal(r.creditos, 9);
+  assert.equal(r.puntos, 12 + 9 + 6);
+  assert.deepEqual(r.sustituidas, {});
+});
+
+test('acumulado sin cuatrimestres o sin datos', () => {
+  const vacio = { puntos: 0, creditos: 0, centesimas: null, decimas: null, sustituidas: {} };
+  assert.deepEqual(acumulado([]), vacio);
+  assert.deepEqual(acumulado([cuat('c0')], 0), vacio);
+  assert.deepEqual(acumulado(CLASE_ACUM, -1), vacio);
 });
