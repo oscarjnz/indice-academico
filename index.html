@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Índice académico</title>
+  <meta name="description" content="Calcula tu índice cuatrimestral y acumulado con la escala A, B, C, D, F del reglamento académico de grado.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="saltar" href="#lista">Ir a los cuatrimestres</a>
+
+  <header class="resumen">
+    <div class="resumen-interior">
+      <h1>Índice académico</h1>
+      <div class="acumulado">
+        <span class="etiqueta">Índice acumulado</span>
+        <span id="acum-valor" class="cifra">sin datos</span>
+        <span id="acum-exacto" class="exacto"></span>
+        <span id="acum-detalle" class="detalle"></span>
+      </div>
+      <div class="estado">
+        <p id="condicion" class="pildora" data-estado="normal">Condición normal</p>
+        <p id="honor" class="honor"></p>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <p class="introduccion">
+      Anota créditos y nota (A, B, C, D, F) de cada materia al cerrar el cuatrimestre.
+      El índice se calcula solo, mientras escribes.
+    </p>
+
+    <div id="avisos" class="avisos" role="region" aria-label="Avisos" hidden></div>
+
+    <section id="lista" class="lista" aria-label="Cuatrimestres"></section>
+
+    <button id="agregar" type="button" class="primario">Agregar cuatrimestre</button>
+
+    <details class="reglas">
+      <summary>Cómo se calcula y qué supuestos usa</summary>
+      <ul>
+        <li>Puntos de una materia = créditos x valor de la nota (A = 4, B = 3, C = 2, D = 1, F = 0). Índice = total de puntos / total de créditos, redondeado a un decimal: si la segunda cifra decimal es 5 o más, sube una décima.</li>
+        <li><strong>FN</strong> (reprobada por inasistencia) vale 0 y sí cuenta. <strong>R</strong> (retirada), las materias sin nota y las de créditos inválidos no cuentan.</li>
+        <li>En el <strong>acumulado</strong>, una materia repetida cuenta una sola vez: la última calificación, con los créditos de esa vez. Se detecta por el nombre, sin distinguir mayúsculas ni acentos. En el índice de su propio cuatrimestre sigue contando.</li>
+        <li><strong>Condición normal:</strong> en al menos uno de los dos últimos cuatrimestres el índice es 2.0 o más, y el acumulado es 2.0 o más. <strong>Prueba académica:</strong> dos cuatrimestres consecutivos con índice menor que 2.0, o acumulado menor que 2.0.</li>
+        <li>No afectan la condición: el primer cuatrimestre con materias y los cuatrimestres con una sola asignatura.</li>
+        <li><strong>Separación:</strong> tres cuatrimestres consecutivos a prueba, o reprobar tres veces la misma materia (F o FN). Dura dos cuatrimestres consecutivos si aprobaste el 50 % o más de los créditos de la carrera, y tres si aprobaste menos.</li>
+        <li><strong>Honores</strong> con el acumulado final: Cum laude de 3.2 a 3.4, Magna cum laude de 3.5 a 3.7, Summa cum laude de 3.8 a 4.0. Para graduarte el acumulado final debe ser 2.0 o más.</li>
+        <li>Interpretaciones del reglamento que esta herramienta toma: "consecutivos" significa cuatrimestres adyacentes en tu lista, y un cuatrimestre sin efecto en medio rompe la cadena de dos índices bajos. Un cuatrimestre sin efecto hereda la condición anterior para contar los tres seguidos a prueba. Una materia R no cuenta como cursada para decidir si tuviste una sola asignatura.</li>
+      </ul>
+    </details>
+  </main>
+
+  <footer>
+    <p id="guardado" class="guardado"></p>
+    <button id="borrar" type="button" class="peligro">Borrar todo</button>
+    <p class="fuente">
+      Basado en el Reglamento Académico de Grado de la PUCMM (artículos 20, 25, 26, 31, 32, 33, 37 y 38).
+      Es una herramienta informativa: la condición académica oficial la confirma Registro.
+    </p>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
